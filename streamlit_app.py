@@ -1,40 +1,55 @@
-import altair as alt
-import numpy as np
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
 
-"""
-# Welcome to Streamlit!
+def sidebar_filters(data):
+    st.sidebar.markdown("Select a range on the slider that represents movie scores to view the total number of movies in a genre that fall within that range")
+    min_score,max_score = st.sidebar.slider("Choose a value :", min_value=data["score"].min(), max_value=data["score"].max(), value=(3.0,4.0), step=0.1)
+    st.sidebar.markdown("Select your preferred genre(s) and year to view the movies released that year and in that genre")
+    genre = data['genre'].unique()
+    selected_default = list(genre)[:4]
+    selected_genre = st.sidebar.multiselect('Select Genre', genre, default=selected_default)
+    years = data['year'].unique().astype(str)
+    selected_year = st.sidebar.selectbox("Select Year", years)
+    return selected_year, selected_genre, min_score, max_score
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:.
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+def main():
+    st.set_page_config(layout="wide")
+    st.title("Interactive Dashboard")
+    movies_data = pd.read_csv("https://raw.githubusercontent.com/nv-thang/Data-Visualization-Course/main/movies.csv")
+    movies_data.dropna(inplace=True)
+    movies_data['score'] = pd.to_numeric(movies_data['score'], errors='coerce')
+    movies_data['year'] = movies_data['year'].astype(str)
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+    row_1, row_2 = st.columns([5, 5])
+    with row_1:
+        st.subheader("Lists of movies filtered by year and Genre")
+        selected_year, selected_genre, min_score, max_score = sidebar_filters(movies_data)
+        filtered_data = movies_data[(movies_data['year'] == selected_year) & 
+                                    (movies_data['genre'].isin(selected_genre)) & 
+                                    (movies_data['score'] >= min_score) & 
+                                    (movies_data['score'] <= max_score)]
+        df = pd.DataFrame(filtered_data, columns=['name', 'genre', 'year'])
+        st.dataframe(df, height=388, width=1000)
 
-num_points = st.slider("Number of points in spiral", 1, 10000, 1100)
-num_turns = st.slider("Number of turns in spiral", 1, 300, 31)
+    with row_2:
+        st.subheader("Average Score of Movies and Their Genre")
+        filtered_data = movies_data[(movies_data['year'] == selected_year) & (movies_data['genre'].isin(selected_genre))]
+        avg_user_score = filtered_data.groupby('genre')['score'].mean().round(2)
+        st.line_chart(avg_user_score)           
+        st.header("Average Movie Budget by Genre")
+        avg_budget = movies_data.groupby('genre')['budget'].mean().round()
+        avg_budget = avg_budget.reset_index()
+        genre = avg_budget['genre']
+        avg_budget_value = avg_budget['budget']
+        
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.bar(genre, avg_budget_value, color='maroon')
+    ax.set_xlabel("Genre")
+    ax.set_ylabel('Average Budget')
+    ax.set_title('Average Movie Budget by Genre')
+    ax.tick_params(axis="x", rotation=45)
+    st.pyplot(fig)
 
-indices = np.linspace(0, 1, num_points)
-theta = 2 * np.pi * num_turns * indices
-radius = indices
-
-x = radius * np.cos(theta)
-y = radius * np.sin(theta)
-
-df = pd.DataFrame({
-    "x": x,
-    "y": y,
-    "idx": indices,
-    "rand": np.random.randn(num_points),
-})
-
-st.altair_chart(alt.Chart(df, height=700, width=700)
-    .mark_point(filled=True)
-    .encode(
-        x=alt.X("x", axis=None),
-        y=alt.Y("y", axis=None),
-        color=alt.Color("idx", legend=None, scale=alt.Scale()),
-        size=alt.Size("rand", legend=None, scale=alt.Scale(range=[1, 150])),
-    ))
+if __name__ == "__main__":
+    main()
